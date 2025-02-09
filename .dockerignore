@@ -1,0 +1,6 @@
+/.github
+go.work
+go.work.sum
+/cmds/pbtypecli
+LICENSE
+README.md
