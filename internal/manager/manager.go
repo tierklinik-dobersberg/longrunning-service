@@ -43,6 +43,12 @@ type (
 	}
 )
 
+// New returns a new manager that will watch active operations in r and eventually mark them
+// as lost if no update happens during the specified TTL and GracePeriod of the operation.
+// If tickerFactory is not nil, it will be used to create the ticker for the polling interval,
+// if nil, time.NewTicker is used.
+// If sinceFunc is not nil it will be used to get the amount of time that has ellapsed since
+// the last operation update. If nil, time.Since will be used.
 func New(r Repository, tickerFactory TickerFactory, sinceFunc SinceFunc) *Manager {
 	if tickerFactory == nil {
 		tickerFactory = time.NewTicker
@@ -59,6 +65,10 @@ func New(r Repository, tickerFactory TickerFactory, sinceFunc SinceFunc) *Manage
 	}
 }
 
+// OnLost registers a callback function that will be invoked in a separate
+// goroutine whenever an operation is marked as lost.
+// The operation passed when fn is called is cloned and not shared with any
+// other so it's save to manipulate it.
 func (m *Manager) OnLost(fn func(*longrunningv1.Operation)) {
 	m.l.Lock()
 	defer m.l.Unlock()
@@ -66,6 +76,8 @@ func (m *Manager) OnLost(fn func(*longrunningv1.Operation)) {
 	m.onLost = append(m.onLost, fn)
 }
 
+// Start starts watching active operations.
+// If calleds multiple times, Start is a no-op.
 func (m *Manager) Start(ctx context.Context) error {
 	m.startOnce.Do(func() {
 		m.wg.Add(1)
@@ -124,6 +136,7 @@ func (m *Manager) notifyLost(op *longrunningv1.Operation) {
 	}
 }
 
+// Wait waits for the manager to stop.
 func (m *Manager) Wait() {
 	m.wg.Wait()
 }
