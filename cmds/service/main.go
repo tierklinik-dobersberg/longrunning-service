@@ -74,7 +74,7 @@ func main() {
 	}
 
 	// create a new manager that will handle lost operations
-	mng := manager.New(providers.Repo)
+	mng := manager.New(providers.Repo, nil, nil)
 	if err := mng.Start(ctx); err != nil {
 		slog.Error("failed to start manager", "error", err)
 		os.Exit(-1)
