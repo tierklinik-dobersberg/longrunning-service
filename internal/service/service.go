@@ -2,11 +2,15 @@ package service
 
 import (
 	"context"
+	"log/slog"
+	"sync"
+	"time"
 
 	"github.com/bufbuild/connect-go"
 	longrunningv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/longrunning/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/longrunning/v1/longrunningv1connect"
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/config"
+	"github.com/tierklinik-dobersberg/longrunning-service/internal/manager"
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/repo"
 )
 
@@ -15,13 +19,23 @@ type Service struct {
 
 	repo      *repo.Repo
 	providers *config.Providers
+	mng       *manager.Manager
+
+	l        sync.RWMutex
+	watchers map[string][]chan *longrunningv1.Operation
 }
 
-func New(providers *config.Providers) *Service {
-	return &Service{
+func New(providers *config.Providers, mng *manager.Manager) *Service {
+	svc := &Service{
 		repo:      providers.Repo,
 		providers: providers,
+		mng:       mng,
+		watchers:  make(map[string][]chan *longrunningv1.Operation),
 	}
+
+	mng.OnLost(svc.notifyWatchers)
+
+	return svc
 }
 
 func (s *Service) RegisterOperation(ctx context.Context, req *connect.Request[longrunningv1.RegisterOperationRequest]) (*connect.Response[longrunningv1.RegisterOperationResponse], error) {
@@ -49,6 +63,8 @@ func (s *Service) UpdateOperation(ctx context.Context, req *connect.Request[long
 		return nil, err
 	}
 
+	s.notifyWatchers(op)
+
 	return connect.NewResponse(op), nil
 }
 
@@ -57,6 +73,8 @@ func (s *Service) CompleteOperation(ctx context.Context, req *connect.Request[lo
 	if err != nil {
 		return nil, err
 	}
+
+	s.notifyWatchers(op)
 
 	return connect.NewResponse(op), nil
 }
@@ -80,4 +98,45 @@ func (s *Service) QueryOperations(ctx context.Context, req *connect.Request[long
 		Operation:  op,
 		TotalCount: int64(len(op)),
 	}), nil
+}
+
+func (s *Service) notifyWatchers(op *longrunningv1.Operation) {
+	s.l.RLock()
+	defer s.l.RUnlock()
+
+	for _, w := range s.watchers[op.UniqueId] {
+		select {
+		case w <- op:
+		case <-time.After(time.Second):
+			slog.Warn("failed to notify watcher")
+		}
+	}
+}
+
+func (s *Service) addWatcher(id string) chan *longrunningv1.Operation {
+	ch := make(chan *longrunningv1.Operation, 100)
+
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	s.watchers[id] = append(s.watchers[id], ch)
+
+	return ch
+}
+
+func (s *Service) removeWatcher(id string, ch chan *longrunningv1.Operation) {
+	s.l.Lock()
+	defer s.l.Unlock()
+
+	m := make([]chan *longrunningv1.Operation, 0, len(s.watchers[id])-1)
+
+	for _, w := range s.watchers[id] {
+		if w == ch {
+			continue
+		}
+
+		m = append(m, w)
+	}
+
+	s.watchers[id] = m
 }

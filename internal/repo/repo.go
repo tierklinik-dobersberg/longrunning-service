@@ -59,6 +59,10 @@ func (r *Repo) RegisterOperation(ctx context.Context, reg *longrunningv1.Registe
 	model.ID = primitive.NewObjectID()
 	model.AuthToken = authCode
 
+	if model.State == longrunningv1.OperationState_OperationState_UNSPECIFIED {
+		model.State = longrunningv1.OperationState_OperationState_PENDING
+	}
+
 	if _, err := r.col.InsertOne(ctx, model); err != nil {
 		return "", "", err
 	}
@@ -66,14 +70,25 @@ func (r *Repo) RegisterOperation(ctx context.Context, reg *longrunningv1.Registe
 	return model.ID.Hex(), authCode, nil
 }
 
-func (r *Repo) MarkAsLost(ctx context.Context, id primitive.ObjectID) (*longrunningv1.Operation, error) {
+func (r *Repo) GetActiveOperations(ctx context.Context) ([]*longrunningv1.Operation, error) {
+	return r.find(ctx, bson.M{
+		"state": longrunningv1.OperationState_OperationState_RUNNING,
+	})
+}
+
+func (r *Repo) MarkAsLost(ctx context.Context, id string) (*longrunningv1.Operation, error) {
+	oid, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+
 	updDoc := bson.M{
 		"lastUpdate": time.Now(),
 		"state":      longrunningv1.OperationState_OperationState_LOST,
 	}
 
 	return run(ctx, r, func(sc mongo.SessionContext) (*longrunningv1.Operation, error) {
-		result, err := r.findAndUpdateOperation(ctx, id, updDoc)
+		result, err := r.findAndUpdateOperation(ctx, oid, updDoc)
 		if err != nil {
 			return nil, err
 		}

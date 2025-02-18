@@ -19,6 +19,7 @@ import (
 	"github.com/tierklinik-dobersberg/apis/pkg/server"
 	"github.com/tierklinik-dobersberg/apis/pkg/validator"
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/config"
+	"github.com/tierklinik-dobersberg/longrunning-service/internal/manager"
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/service"
 	"google.golang.org/protobuf/reflect/protoregistry"
 )
@@ -72,7 +73,14 @@ func main() {
 		os.Exit(-1)
 	}
 
-	svc := service.New(providers)
+	// create a new manager that will handle lost operations
+	mng := manager.New(providers.Repo)
+	if err := mng.Start(ctx); err != nil {
+		slog.Error("failed to start manager", "error", err)
+		os.Exit(-1)
+	}
+
+	svc := service.New(providers, mng)
 
 	serveMux := http.NewServeMux()
 
