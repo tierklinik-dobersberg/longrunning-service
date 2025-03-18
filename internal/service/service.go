@@ -102,10 +102,15 @@ func (s *Service) QueryOperations(ctx context.Context, req *connect.Request[long
 
 func (s *Service) WatchOperation(ctx context.Context, req *connect.Request[longrunningv1.GetOperationRequest], stream *connect.ServerStream[longrunningv1.Operation]) error {
 	ch := s.addWatcher(req.Msg.UniqueId)
+	defer s.removeWatcher(req.Msg.UniqueId, ch)
 
 	for {
 		select {
-		case update := <-ch:
+		case update, ok := <-ch:
+			// channel get's closed when it's state is set to complete or error.
+			if !ok {
+				return nil
+			}
 
 			if err := stream.Send(update); err != nil {
 				slog.Error("failed to publish operation update", "error", err, "uniqueId", req.Msg.UniqueId)
@@ -130,6 +135,20 @@ func (s *Service) notifyWatchers(op *longrunningv1.Operation) {
 		case <-time.After(time.Second):
 			slog.Warn("failed to notify watcher")
 		}
+	}
+
+	// close all channels if the operation is either completed or lost since no updates are expected/allowed anymore.
+	if op.State == longrunningv1.OperationState_OperationState_COMPLETE || op.State == longrunningv1.OperationState_OperationState_LOST {
+		go func() {
+			s.l.Lock()
+			defer s.l.Unlock()
+
+			for _, w := range s.watchers[op.UniqueId] {
+				close(w)
+			}
+
+			delete(s.watchers, op.UniqueId)
+		}()
 	}
 }
 
