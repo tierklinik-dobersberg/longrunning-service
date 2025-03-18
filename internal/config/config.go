@@ -5,7 +5,9 @@ import (
 	"fmt"
 
 	"github.com/sethvargo/go-envconfig"
+	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/events/v1/eventsv1connect"
 	"github.com/tierklinik-dobersberg/apis/pkg/discovery"
+	"github.com/tierklinik-dobersberg/apis/pkg/discovery/wellknown"
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/repo"
 )
 
@@ -33,10 +35,20 @@ func (cfg *Config) ConfigureProviders(ctx context.Context, catalog discovery.Dis
 		return nil, err
 	}
 
-	return &Providers{
-		Config: cfg,
-		Repo:   repo,
+	var events eventsv1connect.EventServiceClient
+	if catalog != nil {
+		var err error
 
-		Catalog: catalog,
+		events, err = wellknown.EventService.Create(ctx, catalog)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &Providers{
+		Config:       cfg,
+		Repo:         repo,
+		Catalog:      catalog,
+		EventService: events,
 	}, nil
 }

@@ -100,6 +100,26 @@ func (s *Service) QueryOperations(ctx context.Context, req *connect.Request[long
 	}), nil
 }
 
+func (s *Service) WatchOperation(ctx context.Context, req *connect.Request[longrunningv1.GetOperationRequest], stream *connect.ServerStream[longrunningv1.Operation]) error {
+	ch := s.addWatcher(req.Msg.UniqueId)
+
+	for {
+		select {
+		case update := <-ch:
+
+			if err := stream.Send(update); err != nil {
+				slog.Error("failed to publish operation update", "error", err, "uniqueId", req.Msg.UniqueId)
+
+				// If sending fails there's no need to return an error to the caller
+				return nil
+			}
+
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
 func (s *Service) notifyWatchers(op *longrunningv1.Operation) {
 	s.l.RLock()
 	defer s.l.RUnlock()

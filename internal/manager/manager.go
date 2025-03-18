@@ -78,6 +78,9 @@ func (m *Manager) OnLost(fn func(*longrunningv1.Operation)) {
 
 // Start starts watching active operations.
 // If calleds multiple times, Start is a no-op.
+//
+// To stop a running manager, cancel the context and
+// call Wait().
 func (m *Manager) Start(ctx context.Context) error {
 	m.startOnce.Do(func() {
 		m.wg.Add(1)
@@ -137,6 +140,7 @@ func (m *Manager) notifyLost(op *longrunningv1.Operation) {
 }
 
 // Wait waits for the manager to stop.
+// This does not wait for any outstanding OnLost callbacks.
 func (m *Manager) Wait() {
 	m.wg.Wait()
 }

@@ -1,3 +1,4 @@
-./pbtype-server
+./service
+./longrunningcli
 go.work.sum
 go.work

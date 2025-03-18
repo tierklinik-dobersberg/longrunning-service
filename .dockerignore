@@ -1,6 +1,6 @@
 /.github
 go.work
 go.work.sum
-/cmds/pbtypecli
+/cmds/longrunningcli
 LICENSE
 README.md
