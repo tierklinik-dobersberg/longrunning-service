@@ -155,6 +155,8 @@ func (s *Service) notifyWatchers(op *longrunningv1.Operation) {
 				slog.Error("failed to publish operation to events-service", "error", err)
 			}
 		}
+	} else {
+		slog.Info("not publishing events, event-service not available")
 	}
 
 	s.l.RLock()
