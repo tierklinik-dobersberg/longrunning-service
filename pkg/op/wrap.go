@@ -2,6 +2,7 @@ package op
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -61,7 +62,9 @@ func Wrap[T any](ctx context.Context, cli longrunningv1connect.LongRunningServic
 		}
 	}()
 
-	result, resultErr := fn(ctx)
+	result, resultErr := callAndCatch(func() (T, error) {
+		return fn(ctx)
+	})
 	cancel()
 
 	wg.Wait()
@@ -97,6 +100,25 @@ func Wrap[T any](ctx context.Context, cli longrunningv1connect.LongRunningServic
 	if _, err := cli.CompleteOperation(context.Background(), connect.NewRequest(creq)); err != nil {
 		slog.Error("failed to mark operation as complete", "error", err.Error())
 	}
+
+	return result, resultErr
+}
+
+func callAndCatch[T any](fn func() (T, error)) (T, error) {
+
+	var resultErr error
+
+	defer func() {
+		if x := recover(); x != nil {
+			if e, ok := x.(error); ok {
+				resultErr = e
+			} else {
+				resultErr = fmt.Errorf("panic: %v", x)
+			}
+		}
+	}()
+
+	result, resultErr := fn()
 
 	return result, resultErr
 }
