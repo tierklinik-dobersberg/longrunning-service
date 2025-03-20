@@ -12,8 +12,9 @@ import (
 func main() {
 	cli := cli.New("lrun")
 
-	root := cmds.GetRootCommand(cli)
-	if err := root.ExecuteContext(context.Background()); err != nil {
+	cmds.GetRootCommand(cli)
+
+	if err := cli.ExecuteContext(context.Background()); err != nil {
 		slog.Error("failed to execute", "error", err)
 		os.Exit(-1)
 	}
