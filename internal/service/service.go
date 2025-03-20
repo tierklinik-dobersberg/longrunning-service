@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"github.com/bufbuild/connect-go"
+	eventsv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/events/v1"
 	longrunningv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/longrunning/v1"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/longrunning/v1/longrunningv1connect"
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/config"
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/manager"
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/repo"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type Service struct {
@@ -126,6 +128,20 @@ func (s *Service) WatchOperation(ctx context.Context, req *connect.Request[longr
 }
 
 func (s *Service) notifyWatchers(op *longrunningv1.Operation) {
+	// first, publish the operation to the events-service
+	if s.providers.EventService != nil {
+		anypb, err := anypb.New(op)
+		if err != nil {
+			slog.Error("failed to convert longrunningv1.Operation to anypb.Any", "error", err)
+		} else {
+			if _, err := s.providers.EventService.Publish(context.Background(), connect.NewRequest(&eventsv1.Event{
+				Event: anypb,
+			})); err != nil {
+				slog.Error("failed to publish operation to events-service", "error", err)
+			}
+		}
+	}
+
 	s.l.RLock()
 	defer s.l.RUnlock()
 

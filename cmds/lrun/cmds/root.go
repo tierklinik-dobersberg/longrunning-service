@@ -188,4 +188,66 @@ func GetRootCommand(root *cli.Root) {
 		f.DurationVar(&gracePeriod, "grace-period", 0, "The grace-period for the long running operation")
 		f.StringVarP(&description, "description", "d", "", "An optional description")
 	}
+
+	root.AddCommand(
+		GetRegisterCommand(root),
+	)
+}
+
+func GetRegisterCommand(root *cli.Root) *cobra.Command {
+	var (
+		kind        string
+		owner       string
+		description string
+		creator     string
+		ttl         time.Duration
+		gracePeriod time.Duration
+	)
+
+	cmd := &cobra.Command{
+		Use: "register",
+		Run: func(cmd *cobra.Command, args []string) {
+			cli := root.LongRunning()
+
+			var (
+				ttlpb         *durationpb.Duration
+				gracePeriodPb *durationpb.Duration
+			)
+
+			if ttl != 0 {
+				ttlpb = durationpb.New(ttl)
+			}
+
+			if gracePeriod != 0 {
+				gracePeriodPb = durationpb.New(gracePeriod)
+			}
+
+			regReq := &longrunningv1.RegisterOperationRequest{
+				Owner:       owner,
+				Creator:     creator,
+				Ttl:         ttlpb,
+				GracePeriod: gracePeriodPb,
+				Description: description,
+				Kind:        kind,
+			}
+
+			res, err := cli.RegisterOperation(root.Context(), connect.NewRequest(regReq))
+			if err != nil {
+				logrus.Fatal(err.Error())
+			}
+
+			root.Print(res.Msg)
+		},
+	}
+
+	f := cmd.Flags()
+	{
+		f.StringVarP(&kind, "kind", "k", "", "The kind of the long-running operation")
+		f.StringVarP(&owner, "owner", "o", "", "The owner of the long-running operation")
+		f.StringVarP(&creator, "creator", "C", "", "The creator of the long-running operation")
+		f.DurationVar(&ttl, "ttl", 0, "The TTL for the long-running operation")
+		f.DurationVar(&gracePeriod, "grace-period", 0, "The grace-period for the long running operation")
+		f.StringVarP(&description, "description", "d", "", "An optional description")
+	}
+	return cmd
 }
