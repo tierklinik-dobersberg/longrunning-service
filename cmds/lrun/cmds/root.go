@@ -168,7 +168,7 @@ func GetRootCommand(root *cli.Root) {
 			}
 		}
 
-		if _, err := cli.CompleteOperation(ctx, connect.NewRequest(req)); err != nil {
+		if _, err := cli.CompleteOperation(root.Context(), connect.NewRequest(req)); err != nil {
 			logrus.Fatalf("failed to mark operation as complete: %s", err.Error())
 		}
 	}

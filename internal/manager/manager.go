@@ -91,6 +91,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			defer ticker.Stop()
 
 			for {
+				slog.Info("checking operation states")
 
 				m.checkOperations(ctx)
 
@@ -113,6 +114,10 @@ func (m *Manager) checkOperations(ctx context.Context) {
 		return
 	}
 
+	if len(ops) == 0 {
+		slog.Info("no active operations available, nothing to check")
+	}
+
 	// check each active operation
 	for _, op := range ops {
 		lastUpdate := op.LastUpdate.AsTime()
@@ -126,6 +131,8 @@ func (m *Manager) checkOperations(ctx context.Context) {
 
 				m.notifyLost(op)
 			}
+		} else {
+			slog.Info("operation still in progress", "id", op.UniqueId, "description", op.Description)
 		}
 	}
 }
