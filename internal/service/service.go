@@ -53,6 +53,21 @@ func (s *Service) RegisterOperation(ctx context.Context, req *connect.Request[lo
 		return nil, err
 	}
 
+	if s.providers.EventService != nil {
+		go func() {
+			anypb, err := anypb.New(op)
+			if err != nil {
+				slog.Error("failed to convert longrunningv1.Operation to anypb.Any", "error", err)
+			} else {
+				if _, err := s.providers.EventService.Publish(context.Background(), connect.NewRequest(&eventsv1.Event{
+					Event: anypb,
+				})); err != nil {
+					slog.Error("failed to publish operation to events-service", "error", err)
+				}
+			}
+		}()
+	}
+
 	return connect.NewResponse(&longrunningv1.RegisterOperationResponse{
 		Operation: op,
 		AuthToken: authCode,
