@@ -233,7 +233,12 @@ func (r *Repo) UpdateOperation(ctx context.Context, upd *longrunningv1.UpdateOpe
 }
 
 func (r *Repo) find(ctx context.Context, filter bson.M) ([]*longrunningv1.Operation, error) {
-	res, err := r.col.Find(ctx, filter)
+	res, err := r.col.Find(ctx, filter, options.Find().SetSort(bson.D{
+		{
+			Key:   "createTime",
+			Value: -1,
+		},
+	}))
 	if err != nil {
 		return nil, err
 	}
