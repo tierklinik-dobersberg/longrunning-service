@@ -28,6 +28,9 @@ func Wrap[T any](ctx context.Context, cli longrunningv1connect.LongRunningServic
 		op(req)
 	}
 
+	// clone the request headers since we need them for updating/completing as well.
+	headers := req.Header().Clone()
+
 	res, err := cli.RegisterOperation(ctx, req)
 	if err != nil {
 		return empty, err
@@ -50,14 +53,22 @@ func Wrap[T any](ctx context.Context, cli longrunningv1connect.LongRunningServic
 			case <-time.After(res.Msg.Operation.Ttl.AsDuration()):
 			}
 
-			_, err := cli.UpdateOperation(ctx, connect.NewRequest(&longrunningv1.UpdateOperationRequest{
+			updReq := connect.NewRequest(&longrunningv1.UpdateOperationRequest{
 				UniqueId:  res.Msg.Operation.UniqueId,
 				AuthToken: res.Msg.GetAuthToken(),
 				Running:   true,
 				UpdateMask: &fieldmaskpb.FieldMask{
 					Paths: []string{"running"},
 				},
-			}))
+			})
+
+			for key, values := range headers {
+				for _, v := range values {
+					updReq.Header().Add(key, v)
+				}
+			}
+
+			_, err := cli.UpdateOperation(ctx, updReq)
 			if err != nil {
 				slog.Error("failed to update operation", "error", err)
 			}
@@ -99,7 +110,14 @@ func Wrap[T any](ctx context.Context, cli longrunningv1connect.LongRunningServic
 		}
 	}
 
-	if _, err := cli.CompleteOperation(context.Background(), connect.NewRequest(creq)); err != nil {
+	completeRequest := connect.NewRequest(creq)
+	for key, values := range headers {
+		for _, v := range values {
+			completeRequest.Header().Add(key, v)
+		}
+	}
+
+	if _, err := cli.CompleteOperation(context.Background(), completeRequest); err != nil {
 		slog.Error("failed to mark operation as complete", "error", err.Error())
 	}
 
