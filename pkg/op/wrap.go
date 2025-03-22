@@ -20,7 +20,9 @@ type Option func(req *connect.Request[longrunningv1.RegisterOperationRequest])
 func Wrap[T any](ctx context.Context, cli longrunningv1connect.LongRunningServiceClient, fn func(ctx context.Context) (T, error), ops ...Option) (T, error) {
 	var empty T
 
-	req := connect.NewRequest(&longrunningv1.RegisterOperationRequest{})
+	req := connect.NewRequest(&longrunningv1.RegisterOperationRequest{
+		InitialState: longrunningv1.OperationState_OperationState_RUNNING,
+	})
 
 	for _, op := range ops {
 		op(req)
