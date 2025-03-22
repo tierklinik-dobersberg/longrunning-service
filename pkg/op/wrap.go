@@ -15,18 +15,18 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-type Option func(req *longrunningv1.RegisterOperationRequest)
+type Option func(req *connect.Request[longrunningv1.RegisterOperationRequest])
 
 func Wrap[T any](ctx context.Context, cli longrunningv1connect.LongRunningServiceClient, fn func(ctx context.Context) (T, error), ops ...Option) (T, error) {
 	var empty T
 
-	req := &longrunningv1.RegisterOperationRequest{}
+	req := connect.NewRequest(&longrunningv1.RegisterOperationRequest{})
 
 	for _, op := range ops {
 		op(req)
 	}
 
-	res, err := cli.RegisterOperation(ctx, connect.NewRequest(req))
+	res, err := cli.RegisterOperation(ctx, req)
 	if err != nil {
 		return empty, err
 	}
