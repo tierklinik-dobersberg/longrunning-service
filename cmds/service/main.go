@@ -24,6 +24,8 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
+var serverContextKey = struct{ S string }{S: "serverContextKey"}
+
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -56,7 +58,20 @@ func main() {
 		authInterceptor := auth.NewAuthAnnotationInterceptor(
 			protoregistry.GlobalFiles,
 			auth.NewIDMRoleResolver(roleClient),
-			auth.RemoteHeaderExtractor,
+			func(ctx context.Context, req connect.AnyRequest) (auth.RemoteUser, error) {
+				serverKey, _ := ctx.Value(serverContextKey).(string)
+
+				if serverKey == "admin" {
+					return auth.RemoteUser{
+						ID:          "service-account",
+						DisplayName: req.Peer().Addr,
+						RoleIDs:     []string{"idm_superuser"},
+						Admin:       true,
+					}, nil
+				}
+
+				return auth.RemoteHeaderExtractor(ctx, req)
+			},
 		)
 
 		interceptors = connect.WithOptions(interceptors, connect.WithInterceptors(authInterceptor))
@@ -97,8 +112,22 @@ func main() {
 		})
 	}
 
+	wrapWithKey := func(key string, next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r = r.WithContext(context.WithValue(r.Context(), serverContextKey, key))
+
+			next.ServeHTTP(w, r)
+		})
+	}
+
 	// Create the server
-	srv, err := server.CreateWithOptions(cfg.ListenAddress, loggingHandler(serveMux), server.WithCORS(corsConfig))
+	srv, err := server.CreateWithOptions(cfg.ListenAddress, wrapWithKey("public", loggingHandler(serveMux)), server.WithCORS(corsConfig))
+	if err != nil {
+		slog.Error("failed to setup server", slog.Any("error", err.Error()))
+		os.Exit(-1)
+	}
+
+	adminSrv, err := server.CreateWithOptions(cfg.AdminListenAddress, wrapWithKey("admin", loggingHandler(serveMux)), server.WithCORS(corsConfig))
 	if err != nil {
 		slog.Error("failed to setup server", slog.Any("error", err.Error()))
 		os.Exit(-1)
@@ -107,13 +136,13 @@ func main() {
 	// Enable service discovery
 	if err := discovery.Register(ctx, catalog, &discovery.ServiceInstance{
 		Name:    wellknown.LongrunningV1ServiceScope,
-		Address: cfg.ListenAddress,
+		Address: cfg.AdminListenAddress,
 	}); err != nil {
 		slog.Error("failed to register service and service catalog", slog.Any("error", err.Error()))
 		os.Exit(-1)
 	}
 
-	if err := server.Serve(ctx, srv); err != nil {
+	if err := server.Serve(ctx, srv, adminSrv); err != nil {
 		slog.Error("failed to serve", slog.Any("error", err.Error()))
 		os.Exit(-1)
 	}

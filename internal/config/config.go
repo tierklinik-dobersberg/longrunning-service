@@ -12,8 +12,9 @@ import (
 )
 
 type Config struct {
-	AllowedOrigins []string `env:"ALLOWED_ORIGINS,default=*"`
-	ListenAddress  string   `env:"LISTEN,default=:8081"`
+	AllowedOrigins     []string `env:"ALLOWED_ORIGINS,default=*"`
+	ListenAddress      string   `env:"LISTEN,default=:8081"`
+	AdminListenAddress string   `env:"ADMIN_LISTEN,default=:8082"`
 
 	MongoURL string `env:"MONGO_URL,required"`
 	Database string `env:"DATABASE,default=cis"`
