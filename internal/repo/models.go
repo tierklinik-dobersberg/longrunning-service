@@ -60,6 +60,9 @@ type Operation struct {
 	Error   *Error   `bson:"error,omitempty"`
 
 	AuthToken string `bson:"authToken"`
+
+	PercentDone   int    `bson:"percentDone"`
+	StatusMessage string `bson:"statusMessage"`
 }
 
 type Success struct {
@@ -74,17 +77,19 @@ type Error struct {
 
 func (op *Operation) ToProto() (*longrunningv1.Operation, error) {
 	pbop := &longrunningv1.Operation{
-		UniqueId:    op.ID.Hex(),
-		CreateTime:  timestamppb.New(op.CreateTime),
-		Owner:       op.Owner,
-		Creator:     op.Creator,
-		State:       op.State,
-		Ttl:         durationpb.New(op.Ttl),
-		GracePeriod: durationpb.New(op.GracePeriod),
-		Description: op.Description,
-		LastUpdate:  timestamppb.New(op.LastUpdate),
-		Annotations: op.Annotations,
-		Kind:        op.Kind,
+		UniqueId:      op.ID.Hex(),
+		CreateTime:    timestamppb.New(op.CreateTime),
+		Owner:         op.Owner,
+		Creator:       op.Creator,
+		State:         op.State,
+		Ttl:           durationpb.New(op.Ttl),
+		GracePeriod:   durationpb.New(op.GracePeriod),
+		Description:   op.Description,
+		LastUpdate:    timestamppb.New(op.LastUpdate),
+		Annotations:   op.Annotations,
+		Kind:          op.Kind,
+		StatusMessage: op.StatusMessage,
+		PercentDone:   int32(op.PercentDone),
 	}
 
 	if len(op.Parameters) > 0 {

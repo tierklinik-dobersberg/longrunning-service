@@ -330,6 +330,8 @@ github.com/tierklinik-dobersberg/apis v0.41.2 h1:9/Wt2wCaBuyriEiiMXxR/QGqbNg/t14
 github.com/tierklinik-dobersberg/apis v0.41.2/go.mod h1:gXuKcer0mMcGWw3DN9M05trUk3LenkcUkSO/pUGSqIA=
 github.com/tierklinik-dobersberg/apis v0.41.3 h1:+34LIiuG8aDjkDx1fKy69YfXC/wy+7a0IMCxo1+fxHY=
 github.com/tierklinik-dobersberg/apis v0.41.3/go.mod h1:gXuKcer0mMcGWw3DN9M05trUk3LenkcUkSO/pUGSqIA=
+github.com/tierklinik-dobersberg/apis v0.42.5 h1:I6KoMyyoZWF3c7q2ybDaW4wuC/tkk3FeryoxomqEsYA=
+github.com/tierklinik-dobersberg/apis v0.42.5/go.mod h1:gXuKcer0mMcGWw3DN9M05trUk3LenkcUkSO/pUGSqIA=
 github.com/tklauser/go-sysconf v0.3.14 h1:g5vzr9iPFFz24v2KZXs/pvpvh8/V9Fw6vQK5ZZb78yU=
 github.com/tklauser/go-sysconf v0.3.14/go.mod h1:1ym4lWMLUOhuBOPGtRcJm7tEGX4SCYNEEEtghGG/8uY=
 github.com/tklauser/numcpus v0.9.0 h1:lmyCHtANi8aRUgkckBgoDk1nHCux3n2cgkJLXdQGPDo=

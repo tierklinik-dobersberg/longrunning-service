@@ -104,8 +104,9 @@ func (r *Repo) CompleteOperation(ctx context.Context, upd *longrunningv1.Complet
 	}
 
 	updDoc := bson.M{
-		"lastUpdate": time.Now(),
-		"state":      longrunningv1.OperationState_OperationState_COMPLETE,
+		"lastUpdate":  time.Now(),
+		"state":       longrunningv1.OperationState_OperationState_COMPLETE,
+		"percentDone": 100,
 	}
 
 	switch v := upd.Result.(type) {
@@ -191,7 +192,7 @@ func (r *Repo) UpdateOperation(ctx context.Context, upd *longrunningv1.UpdateOpe
 		"lastUpdate": time.Now(),
 	}
 
-	paths := []string{"running", "annotations"}
+	paths := []string{"running", "annotations", "status_message", "percent_done"}
 	if um := upd.GetUpdateMask().GetPaths(); len(um) > 0 {
 		paths = um
 	}
@@ -210,6 +211,12 @@ func (r *Repo) UpdateOperation(ctx context.Context, upd *longrunningv1.UpdateOpe
 
 		case "annotations":
 			updDoc["annotations"] = upd.Annotations
+
+		case "status_message":
+			updDoc["statusMessage"] = upd.StatusMessage
+
+		case "percent_done":
+			updDoc["percentDone"] = int(upd.PercentDone)
 
 		default:
 			return nil, fmt.Errorf("invalid field in update mask")
