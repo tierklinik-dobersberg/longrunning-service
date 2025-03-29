@@ -80,6 +80,7 @@ require (
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/testcontainers/testcontainers-go v0.35.0 // indirect
 	github.com/testcontainers/testcontainers-go/modules/mongodb v0.35.0 // indirect
+	github.com/tierklinik-dobersberg/pbtype-server v0.2.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
@@ -109,6 +110,6 @@ require (
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.5-20250307204501-0409229c3780.1 // indirect
-	github.com/tierklinik-dobersberg/apis v0.42.5
+	github.com/tierklinik-dobersberg/apis v0.43.0
 	google.golang.org/protobuf v1.36.5
 )

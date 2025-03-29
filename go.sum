@@ -332,6 +332,10 @@ github.com/tierklinik-dobersberg/apis v0.41.3 h1:+34LIiuG8aDjkDx1fKy69YfXC/wy+7a
 github.com/tierklinik-dobersberg/apis v0.41.3/go.mod h1:gXuKcer0mMcGWw3DN9M05trUk3LenkcUkSO/pUGSqIA=
 github.com/tierklinik-dobersberg/apis v0.42.5 h1:I6KoMyyoZWF3c7q2ybDaW4wuC/tkk3FeryoxomqEsYA=
 github.com/tierklinik-dobersberg/apis v0.42.5/go.mod h1:gXuKcer0mMcGWw3DN9M05trUk3LenkcUkSO/pUGSqIA=
+github.com/tierklinik-dobersberg/apis v0.43.0 h1:2nZ3gCWxNOlt1BgKo9p1buCda5uarzdHkjHb+2nTum0=
+github.com/tierklinik-dobersberg/apis v0.43.0/go.mod h1:gXuKcer0mMcGWw3DN9M05trUk3LenkcUkSO/pUGSqIA=
+github.com/tierklinik-dobersberg/pbtype-server v0.2.1 h1:LqENb6il3sHAWj/mxZO5/8dKZER/PzcFrZqdgxWEJWI=
+github.com/tierklinik-dobersberg/pbtype-server v0.2.1/go.mod h1:1ovZldoot5lsioZYc5+HgvwbTPO31vqPRn03MWXv7Ro=
 github.com/tklauser/go-sysconf v0.3.14 h1:g5vzr9iPFFz24v2KZXs/pvpvh8/V9Fw6vQK5ZZb78yU=
 github.com/tklauser/go-sysconf v0.3.14/go.mod h1:1ym4lWMLUOhuBOPGtRcJm7tEGX4SCYNEEEtghGG/8uY=
 github.com/tklauser/numcpus v0.9.0 h1:lmyCHtANi8aRUgkckBgoDk1nHCux3n2cgkJLXdQGPDo=

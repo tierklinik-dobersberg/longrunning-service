@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/bufbuild/protovalidate-go"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/longrunning/v1/longrunningv1connect"
 	"github.com/tierklinik-dobersberg/apis/pkg/auth"
+	"github.com/tierklinik-dobersberg/apis/pkg/codec"
 	"github.com/tierklinik-dobersberg/apis/pkg/cors"
 	"github.com/tierklinik-dobersberg/apis/pkg/discovery"
 	"github.com/tierklinik-dobersberg/apis/pkg/discovery/consuldiscover"
@@ -21,6 +24,7 @@ import (
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/config"
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/manager"
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/service"
+	"github.com/tierklinik-dobersberg/pbtype-server/pkg/resolver"
 	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
@@ -53,6 +57,25 @@ func main() {
 		log.NewLoggingInterceptor(),
 		validator.NewInterceptor(protoValidator),
 	)
+
+	svcs, err := catalog.Discover(ctx, wellknown.TypeV1ServiceScope)
+	if err != nil {
+		slog.Error("failed to resolve type-server address", "error", err.Error())
+		os.Exit(-1)
+	}
+
+	if len(svcs) == 0 {
+		slog.Error("failed to resolve type-server address")
+		os.Exit(-1)
+	}
+
+	i := svcs[rand.IntN(len(svcs))]
+	addr := fmt.Sprintf("http://%s", i.Address)
+
+	resolver := resolver.Wrap(addr, protoregistry.GlobalFiles, protoregistry.GlobalTypes)
+	c := codec.NewCodec(resolver)
+
+	interceptors = connect.WithOptions(interceptors, connect.WithCodec(c))
 
 	if roleClient, err := wellknown.RoleService.Create(ctx, catalog); err == nil {
 		authInterceptor := auth.NewAuthAnnotationInterceptor(
