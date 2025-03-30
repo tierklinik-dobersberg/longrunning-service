@@ -12,12 +12,14 @@ import (
 	connect "github.com/bufbuild/connect-go"
 	"github.com/bufbuild/protovalidate-go"
 	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/longrunning/v1/longrunningv1connect"
+	"github.com/tierklinik-dobersberg/apis/gen/go/tkd/typeserver/v1/typeserverv1connect"
 	"github.com/tierklinik-dobersberg/apis/pkg/auth"
 	"github.com/tierklinik-dobersberg/apis/pkg/codec"
 	"github.com/tierklinik-dobersberg/apis/pkg/cors"
 	"github.com/tierklinik-dobersberg/apis/pkg/discovery"
 	"github.com/tierklinik-dobersberg/apis/pkg/discovery/consuldiscover"
 	"github.com/tierklinik-dobersberg/apis/pkg/discovery/wellknown"
+	"github.com/tierklinik-dobersberg/apis/pkg/h2utils"
 	"github.com/tierklinik-dobersberg/apis/pkg/log"
 	"github.com/tierklinik-dobersberg/apis/pkg/server"
 	"github.com/tierklinik-dobersberg/apis/pkg/validator"
@@ -29,6 +31,26 @@ import (
 )
 
 var serverContextKey = struct{ S string }{S: "serverContextKey"}
+
+type resolverFactors struct {
+	catalog discovery.Discoverer
+}
+
+func (r resolverFactors) Create() (typeserverv1connect.TypeResolverServiceClient, error) {
+	svcs, err := r.catalog.Discover(context.Background(), wellknown.TypeV1ServiceScope)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(svcs) == 0 {
+		return nil, fmt.Errorf("no service instances found")
+	}
+
+	i := svcs[rand.IntN(len(svcs))]
+	addr := fmt.Sprintf("http://%s", i.Address)
+
+	return typeserverv1connect.NewTypeResolverServiceClient(h2utils.NewInsecureHttp2Client(), addr), nil
+}
 
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -58,21 +80,8 @@ func main() {
 		validator.NewInterceptor(protoValidator),
 	)
 
-	svcs, err := catalog.Discover(ctx, wellknown.TypeV1ServiceScope)
-	if err != nil {
-		slog.Error("failed to resolve type-server address", "error", err.Error())
-		os.Exit(-1)
-	}
+	resolver := resolver.WrapFactory(resolverFactors{catalog: catalog}, protoregistry.GlobalFiles, protoregistry.GlobalTypes)
 
-	if len(svcs) == 0 {
-		slog.Error("failed to resolve type-server address")
-		os.Exit(-1)
-	}
-
-	i := svcs[rand.IntN(len(svcs))]
-	addr := fmt.Sprintf("http://%s", i.Address)
-
-	resolver := resolver.Wrap(addr, protoregistry.GlobalFiles, protoregistry.GlobalTypes)
 	c := codec.NewCodec(resolver)
 
 	interceptors = connect.WithOptions(interceptors, connect.WithCodec(c))
