@@ -14,6 +14,8 @@ import (
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/manager"
 	"github.com/tierklinik-dobersberg/longrunning-service/internal/repo"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Service struct {
@@ -106,7 +108,16 @@ func (s *Service) GetOperation(ctx context.Context, req *connect.Request[longrun
 }
 
 func (s *Service) QueryOperations(ctx context.Context, req *connect.Request[longrunningv1.QueryOperationsRequest]) (*connect.Response[longrunningv1.QueryOperationsResponse], error) {
-	op, err := s.repo.QueryOperations(ctx, req.Msg)
+	var (
+		op  []*longrunningv1.Operation
+		err error
+	)
+	if req.Msg.Query != "" {
+		op, err = s.repo.QueryOperationsAIP(ctx, req.Msg.Query)
+	} else {
+		op, err = s.repo.QueryOperations(ctx, req.Msg)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -211,4 +222,41 @@ func (s *Service) removeWatcher(id string, ch chan *longrunningv1.Operation) {
 	}
 
 	s.watchers[id] = m
+}
+
+func (svc *Service) StreamOperationLog(ctx context.Context, stream *connect.ClientStream[longrunningv1.StreamOperationLogRequest]) (*connect.Response[emptypb.Empty], error) {
+	for stream.Receive() {
+		msg := stream.Msg()
+
+		if err := svc.repo.AppendLog(ctx, msg.UniqueId, msg.AuthToken, msg.Logs); err != nil {
+			return nil, err
+		}
+	}
+
+	if stream.Err() != nil {
+		return nil, stream.Err()
+	}
+
+	return connect.NewResponse(new(emptypb.Empty)), nil
+}
+
+func (svc *Service) GetOperationLogs(ctx context.Context, req *connect.ClientStream[longrunningv1.GetOperationLogsRequest]) (*connect.Response[longrunningv1.GetOperationLogsResponse], error) {
+	logs, err := svc.repo.GetLogs(ctx, req.Msg().UniqueId)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]*longrunningv1.OperationLog, len(logs))
+	for idx, l := range logs {
+		res[idx] = &longrunningv1.OperationLog{
+			Message:  l.Message,
+			Severity: l.Severity,
+			Time:     timestamppb.New(l.Time),
+		}
+	}
+
+	return connect.NewResponse(&longrunningv1.GetOperationLogsResponse{
+		UniqueId: req.Msg().UniqueId,
+		Logs:     res,
+	}), nil
 }

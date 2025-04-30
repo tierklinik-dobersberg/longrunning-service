@@ -13,6 +13,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+type LogEntry struct {
+	ID       primitive.ObjectID     `bson:"operationId"`
+	Severity longrunningv1.Severity `bson:"severity"`
+	Message  string                 `bson:"message"`
+	Time     time.Time              `bson:"time"`
+}
+
 type Operation struct {
 	// ID holds the ID of the operation.
 	ID primitive.ObjectID `bson:"_id"`

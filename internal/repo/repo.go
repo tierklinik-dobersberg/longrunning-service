@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	longrunningv1 "github.com/tierklinik-dobersberg/apis/gen/go/tkd/longrunning/v1"
+	"github.com/tierklinik-dobersberg/apis/pkg/ql/bsonql"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -19,8 +20,9 @@ import (
 var ErrNotFound = errors.New("operation not found")
 
 type Repo struct {
-	col *mongo.Collection
-	cli *mongo.Client
+	operations *mongo.Collection
+	logs       *mongo.Collection
+	cli        *mongo.Client
 }
 
 func NewRepo(ctx context.Context, url string, db string) (*Repo, error) {
@@ -36,11 +38,99 @@ func NewRepo(ctx context.Context, url string, db string) (*Repo, error) {
 
 func NewRepoWithClient(ctx context.Context, cli *mongo.Client, db string) (*Repo, error) {
 	r := &Repo{
-		col: cli.Database(db).Collection("long-running-operations"),
-		cli: cli,
+		operations: cli.Database(db).Collection("long-running-operations"),
+		logs:       cli.Database(db).Collection("long-running-operation-logs"),
+		cli:        cli,
 	}
 
 	return r, nil
+}
+
+func (r *Repo) AppendLog(ctx context.Context, uniqueId string, authToken string, log []*longrunningv1.OperationLog) error {
+	oid, err := primitive.ObjectIDFromHex(uniqueId)
+	if err != nil {
+		return fmt.Errorf("invalid operation id: %w", err)
+	}
+
+	session, err := r.cli.StartSession()
+	if err != nil {
+		return fmt.Errorf("failed to start session: %w", err)
+	}
+	defer session.EndSession(ctx)
+
+	models := make([]any, len(log))
+
+	for idx, l := range log {
+		t := time.Now()
+
+		if l.GetTime().IsValid() {
+			t = l.Time.AsTime()
+		}
+
+		models[idx] = LogEntry{
+			ID:       oid,
+			Severity: l.Severity,
+			Message:  l.Message,
+			Time:     t,
+		}
+	}
+
+	session.WithTransaction(ctx, func(ctx mongo.SessionContext) (interface{}, error) {
+		// just ensure an operation with the given id and authToken exists.
+		res := r.operations.FindOne(ctx, bson.M{
+			"_id":       oid,
+			"authToken": authToken,
+		})
+
+		if res.Err() != nil {
+			return nil, res.Err()
+		}
+
+		_, err := r.logs.InsertMany(ctx, models)
+		if err != nil {
+			return nil, fmt.Errorf("failed to persist log entries: %w", err)
+		}
+
+		return nil, nil
+	})
+
+	return nil
+}
+
+func (r *Repo) QueryOperationsAIP(ctx context.Context, query string) ([]*longrunningv1.Operation, error) {
+	p := bsonql.BSONQL{
+		Schema: Schema,
+	}
+
+	filter, err := p.Parse(query)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.find(ctx, filter)
+}
+
+func (r *Repo) GetLogs(ctx context.Context, uniqueId string) ([]LogEntry, error) {
+	oid, err := primitive.ObjectIDFromHex(uniqueId)
+	if err != nil {
+		return nil, fmt.Errorf("invalid operation id: %w", err)
+	}
+
+	res, err := r.logs.Find(ctx, bson.M{"operationId": oid})
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("failed to find log entries: %w", err)
+	}
+
+	var models []LogEntry
+	if err := res.All(ctx, &models); err != nil {
+		return nil, fmt.Errorf("failed to decode log entries from storage: %w", err)
+	}
+
+	return models, nil
 }
 
 func (r *Repo) RegisterOperation(ctx context.Context, reg *longrunningv1.RegisterOperationRequest) (string, string, error) {
@@ -63,7 +153,7 @@ func (r *Repo) RegisterOperation(ctx context.Context, reg *longrunningv1.Registe
 		model.State = longrunningv1.OperationState_OperationState_PENDING
 	}
 
-	if _, err := r.col.InsertOne(ctx, model); err != nil {
+	if _, err := r.operations.InsertOne(ctx, model); err != nil {
 		return "", "", err
 	}
 
@@ -147,7 +237,7 @@ func (r *Repo) GetOperation(ctx context.Context, req *longrunningv1.GetOperation
 		return nil, err
 	}
 
-	res := r.col.FindOne(ctx, bson.M{"_id": id})
+	res := r.operations.FindOne(ctx, bson.M{"_id": id})
 	if err := res.Err(); err != nil {
 		return nil, err
 	}
@@ -240,7 +330,7 @@ func (r *Repo) UpdateOperation(ctx context.Context, upd *longrunningv1.UpdateOpe
 }
 
 func (r *Repo) find(ctx context.Context, filter bson.M) ([]*longrunningv1.Operation, error) {
-	res, err := r.col.Find(ctx, filter, options.Find().SetSort(bson.D{
+	res, err := r.operations.Find(ctx, filter, options.Find().SetSort(bson.D{
 		{
 			Key:   "createTime",
 			Value: -1,
@@ -272,7 +362,7 @@ func (r *Repo) find(ctx context.Context, filter bson.M) ([]*longrunningv1.Operat
 }
 
 func (r *Repo) findOperation(ctx context.Context, id primitive.ObjectID) (*Operation, error) {
-	bsonDoc := r.col.FindOne(ctx, bson.M{"_id": id})
+	bsonDoc := r.operations.FindOne(ctx, bson.M{"_id": id})
 	if err := bsonDoc.Err(); err != nil {
 		return nil, err
 	}
@@ -301,7 +391,7 @@ func (r *Repo) getAndValidateUpdate(ctx context.Context, id primitive.ObjectID, 
 }
 
 func (r *Repo) findAndUpdateOperation(ctx context.Context, id primitive.ObjectID, updDoc any) (*Operation, error) {
-	res := r.col.FindOneAndUpdate(
+	res := r.operations.FindOneAndUpdate(
 		ctx,
 		bson.M{"_id": id},
 		bson.M{"$set": updDoc},
