@@ -15,6 +15,29 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+var operationIdContextToken = struct{ S string }{"operation_id"}
+var operationAuthContextToken = struct{ S string }{"operation_auth_token"}
+
+func IDFromContext(ctx context.Context) (string, bool) {
+	val := ctx.Value(operationIdContextToken)
+	if val == nil {
+		return "", false
+	}
+
+	s, ok := val.(string)
+	return s, ok
+}
+
+func AuthTokenFromContext(ctx context.Context) (string, bool) {
+	val := ctx.Value(operationAuthContextToken)
+	if val == nil {
+		return "", false
+	}
+
+	s, ok := val.(string)
+	return s, ok
+}
+
 type Option func(req *connect.Request[longrunningv1.RegisterOperationRequest])
 
 func Wrap[T any](ctx context.Context, cli longrunningv1connect.LongRunningServiceClient, fn func(ctx context.Context) (T, error), ops ...Option) (T, error) {
@@ -35,6 +58,9 @@ func Wrap[T any](ctx context.Context, cli longrunningv1connect.LongRunningServic
 	if err != nil {
 		return empty, err
 	}
+
+	ctx = context.WithValue(ctx, operationIdContextToken, res.Msg.Operation.UniqueId)
+	ctx = context.WithValue(ctx, operationAuthContextToken, res.Msg.AuthToken)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
